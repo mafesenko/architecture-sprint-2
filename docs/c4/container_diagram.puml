@@ -1,0 +1,116 @@
+@startuml ContainerDiagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+' Настройки
+skinparam wrapWidth 200
+skinparam maxMessageSize 250
+
+' Контекст
+Person(user_mobile, "Пользователь", "Смотрит фильмы с мобильного устройства")
+Person(user_web, "Пользователь", "Смотрит фильмы через веб-браузер")
+Person(user_tv, "Пользователь", "Смотрит фильмы через Smart TV")
+
+System_Ext(payment_system, "Платежная система", "Внешняя платежная система (Сбер, Тинькофф и др.)")
+System_Ext(external_cinema, "Внешний онлайн-кинотеатр", "Стриминговые сервисы-партнеры")
+System_Ext(recommendation_system, "Рекомендательная система", "Внешняя система рекомендаций")
+System_Ext(s3_storage, "S3 Хранилище", "Объектное хранилище для видео-контента")
+
+' Основные контейнеры
+System_Boundary(cinema_boundary, "Онлайн-кинотеатр 'Кинобездна'") {
+    
+    Container(proxy_service, "Proxy Service (API Gateway)", "Go", "Маршрутизация запросов, постепенный переход от монолита к микросервисам\nРасположение: src/microservices/proxy/")
+    
+    ' Монолит (изначальное приложение)
+    Container(monolith, "Монолит", "Go/Node.js", "Исходное монолитное приложение\n- Управление пользователями\n- Метаданные фильмов\n- Платежи\n- Подписки\nРасположение: src/monolith/")
+    ContainerDb(monolith_db, "Monolith Database", "PostgreSQL", "Основная база данных монолита")
+    
+    ' Новые микросервисы
+    Container(movies_service, "Movies Service", "Go/gRPC", "Микросервис фильмов\n- Метаданные фильмов\n- Рейтинги\n- Жанры\nРасположение: src/microservices/movies/")
+    ContainerDb(movies_db, "Movies Database", "MongoDB", "Хранение данных фильмов")
+    
+    Container(events_service, "Events Service", "Go", "Сервис обработки событий\n- События фильмов\n- События пользователей\n- События платежей\nРасположение: src/microservices/events/")
+    
+    ' Существующие сервисы (обновлены для соответствия новой архитектуре)
+    Container(user_service, "User Service", "Go/gRPC", "Управление пользователями, аутентификация, профили\n(будет извлечен из монолита)")
+    ContainerDb(user_db, "User Database", "PostgreSQL", "Хранение данных пользователей")
+    
+    Container(playback_service, "Playback Service", "Go/gRPC", "Управление воспроизведением, прогресс просмотра")
+    
+    Container(subscription_service, "Subscription Service", "Go/gRPC", "Управление подписками, платежами, скидками\n(будет извлечен из монолита)")
+    ContainerDb(subscription_db, "Subscription Database", "PostgreSQL", "Хранение данных о подписках и платежах")
+    
+    Container(favorites_service, "Favorites & Ratings Service", "Go/gRPC", "Избранное, оценки фильмов, отзывы\n(интегрирован с Movies Service)")
+    ContainerDb(favorites_db, "Favorites Database", "PostgreSQL", "Хранение избранного и оценок")
+    
+    Container(recommendation_gateway, "Recommendation Gateway", "Go/REST", "Адаптер для внешней рекомендательной системы")
+    
+    Container(event_processor, "Event Processor", "Go", "Обработка событий, интеграция между сервисами")
+    
+    Container(kafka_cluster, "Kafka Cluster", "Apache Kafka", "Брокер событий для асинхронной коммуникации")
+    Container(rabbitmq, "RabbitMQ", "RabbitMQ", "Очереди задач для фоновых операций")
+}
+
+' --- ОТНОШЕНИЯ ---
+
+' 1. Пользователи взаимодействуют с Proxy Service
+Rel(user_mobile, proxy_service, "HTTPS/REST", "API запросы")
+Rel(user_web, proxy_service, "HTTPS/REST", "API запросы")
+Rel(user_tv, proxy_service, "HTTPS/REST", "API запросы")
+
+' 2. Proxy Service распределяет трафик
+Rel(proxy_service, monolith, "HTTP/REST", "Запросы к монолиту\n(постепенно уменьшается)")
+Rel(proxy_service, movies_service, "gRPC/HTTP", "Запросы к микросервису фильмов")
+Rel(proxy_service, user_service, "gRPC/HTTP", "Запросы к сервису пользователей")
+Rel(proxy_service, subscription_service, "gRPC/HTTP", "Запросы к сервису подписок")
+Rel(proxy_service, playback_service, "gRPC/HTTP", "Запросы воспроизведения")
+Rel(proxy_service, favorites_service, "gRPC/HTTP", "Запросы избранного/оценок")
+Rel(proxy_service, recommendation_gateway, "gRPC/HTTP", "Запросы рекомендаций")
+
+' 3. Монолит использует свою базу данных
+Rel(monolith, monolith_db, "SQL", "Все CRUD операции")
+
+' 4. Movies Service взаимодействия
+Rel(movies_service, movies_db, "NoSQL", "Запросы и обновления данных фильмов")
+Rel(movies_service, kafka_cluster, "Kafka Producer", "События фильмов\n(просмотр, оценка, добавление)")
+
+' 5. Events Service подписывается на Kafka
+Rel(kafka_cluster, events_service, "Kafka Consumer", "Потребление событий для обработки")
+
+' 6. События от монолита
+Rel(monolith, kafka_cluster, "Kafka Producer", "События из монолита\n(пользователи, платежи, подписки)")
+
+' 7. Взаимодействия между сервисами
+Rel(playback_service, movies_service, "gRPC", "Получение метаданных фильмов")
+Rel(favorites_service, movies_service, "gRPC", "Работа с оценками и избранным")
+Rel(recommendation_gateway, movies_service, "gRPC", "Получение контекста для рекомендаций")
+
+' 8. Обработка событий
+Rel(events_service, event_processor, "gRPC", "Передача обработанных событий")
+Rel(event_processor, rabbitmq, "AMQP", "Постановка фоновых задач в очередь")
+
+' 9. Внешние системы
+Rel(monolith, payment_system, "HTTPS/REST", "Обработка платежей (из монолита)")
+Rel(proxy_service, external_cinema, "HTTPS/REST", "Запрос контента партнеров")
+Rel(recommendation_gateway, recommendation_system, "HTTPS/REST", "Запрос рекомендаций")
+Rel(playback_service, s3_storage, "S3 API", "Получение видео-контента")
+
+' 10. Прямые взаимодействия с базой данных монолита (для миграции)
+Rel(user_service, monolith_db, "SQL", "Чтение данных во время миграции")
+Rel(subscription_service, monolith_db, "SQL", "Чтение данных во время миграции")
+
+' 11. События от других сервисов
+Rel(user_service, kafka_cluster, "Kafka Producer", "События пользователей")
+Rel(subscription_service, kafka_cluster, "Kafka Producer", "События подписок и платежей")
+Rel(favorites_service, kafka_cluster, "Kafka Producer", "События оценок")
+
+' 12. Связи с базами данных (ИСПРАВЛЕНО - добавлены недостающие связи)
+Rel(user_service, user_db, "SQL", "CRUD операций с пользователями")
+Rel(subscription_service, subscription_db, "SQL", "Транзакции подписок и платежей")
+Rel(favorites_service, favorites_db, "SQL", "Хранение оценок и избранного")
+
+' 13. Дополнительные связи сервисов с базами данных
+Rel(user_service, kafka_cluster, "Kafka Producer", "События пользователей (регистрация, вход)")
+Rel(subscription_service, payment_system, "HTTPS/REST", "Обработка платежей (из микросервиса)")
+
+
+@enduml
