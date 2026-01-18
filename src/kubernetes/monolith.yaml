@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
       - name: monolith
-        image:  ghcr.io/db-exp/cinemaabysstest/monolith:latest
+        image:  ghcr.io/mafesenko/architecture-sprint-2/monolith:sha-e152273@sha256:f3adedf8fd81e7dd5ab6e7d8f5eb5bebc7632e7e9e93de9fcf898df7a4bbe67b
         imagePullPolicy: Always
         ports:
         - containerPort: 8080

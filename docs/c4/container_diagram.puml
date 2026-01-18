@@ -1,0 +1,71 @@
+@startuml ContainerDiagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+' Контекст
+Person(user, "Пользователь", "Смотрит фильмы")
+
+
+System_Ext(payment, "Платежная система", "")
+System_Ext(partners, "Партнеры", "Онлайн-кинотеатры")
+System_Ext(recommendations, "Рекомендательная система", "")
+System_Ext(s3, "S3 Хранилище", "Медиа-контент")
+
+
+System_Boundary(cinemaabyss, "Кинобездна") {
+    
+   
+    Container(api_gateway, "API Gateway", "Python", "Strangler Fig\nАутентификация\nМаршрутизация")
+    
+   
+    Container(movies_service, "Movies Service", "Python", "Метаданные фильмов")
+    Container(playback_service, "Playback Service", "Go", "Воспроизведение")
+    
+    Container(users_service, "Users Service", "Go", "Пользователи")
+    Container(favorites_service, "Favorites Service", "Go", "Избранное/оценки")
+    
+    Container(subscription_service, "Subscription Service", "Go", "Подписки/платежи")
+    
+    Container(events_service, "Events Service", "Python", "Обработка событий")
+    
+
+    ContainerQueue(kafka, "Kafka", "Apache Kafka", "Брокер событий")
+    
+
+    Container(monolith, "Монолит", "Go", "Старое приложение")
+}
+
+
+ContainerDb(movies_db, "Movies DB", "MongoDB", "")
+ContainerDb(users_db, "Users DB", "PostgreSQL", "")
+ContainerDb(favorites_db, "Favorites DB", "PostgreSQL", "")
+ContainerDb(subscription_db, "Subscription DB", "PostgreSQL", "")
+ContainerDb(monolith_db, "Monolith DB", "PostgreSQL", "")
+
+
+Rel(user, api_gateway, "HTTPS", "API запросы")
+
+
+Rel(api_gateway, movies_service, "gRPC", "Фильмы")
+Rel(api_gateway, users_service, "gRPC", "Пользователи")
+Rel(api_gateway, subscription_service, "gRPC", "Подписки")
+Rel(api_gateway, monolith, "HTTP/REST", "Legacy-вызовы")
+Rel(movies_service, movies_db, "", "")
+Rel(users_service, users_db, "", "")
+Rel(favorites_service, favorites_db, "", "")
+Rel(subscription_service, subscription_db, "", "")
+Rel(monolith, monolith_db, "", "")
+Rel(movies_service, kafka, "", "movie-events")
+Rel(users_service, kafka, "", "user-events")
+Rel(subscription_service, kafka, "", "payment-events")
+Rel(favorites_service, kafka, "", "favorite-events")
+Rel(kafka, events_service, "", "Все события")
+Rel(api_gateway, partners, "HTTPS", "Контент партнеров")
+Rel(api_gateway, recommendations, "HTTPS", "Рекомендации")
+Rel(subscription_service, payment, "HTTPS", "Платежи")
+Rel(playback_service, s3, "S3 API", "Медиа-контент")
+Rel(playback_service, movies_service, "gRPC", "Метаданные")
+Rel(favorites_service, movies_service, "gRPC", "Оценки")
+
+
+
+@enduml

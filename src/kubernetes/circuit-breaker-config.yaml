@@ -1,0 +1,107 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: monolith-circuit-breaker
+  namespace: cinemaabyss
+spec:
+  host: monolith.cinemaabyss.svc.cluster.local
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 30ms
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: movies-service-circuit-breaker
+  namespace: cinemaabyss
+spec:
+  host: movies-service.cinemaabyss.svc.cluster.local
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 50
+        connectTimeout: 30ms
+      http:
+        http1MaxPendingRequests: 30
+        http2MaxRequests: 50
+        maxRequestsPerConnection: 5
+        maxRetries: 3
+    outlierDetection:
+      consecutive5xxErrors: 3
+      interval: 15s
+      baseEjectionTime: 60s
+      maxEjectionPercent: 30
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: cinemaabyss-virtual-service
+  namespace: cinemaabyss
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - cinemaabyss-gateway
+  http:
+  - match:
+    - uri:
+        prefix: /api/movies
+    route:
+    - destination:
+        host: movies-service.cinemaabyss.svc.cluster.local
+        port:
+          number: 8081
+      weight: 100
+    timeout: 2s
+    retries:
+      attempts: 3
+      perTryTimeout: 1s
+      
+  - match:
+    - uri:
+        prefix: /api/events
+    route:
+    - destination:
+        host: events-service.cinemaabyss.svc.cluster.local
+        port:
+          number: 8082
+      weight: 100
+      
+  - match:
+    - uri:
+        prefix: /api/
+    route:
+    - destination:
+        host: monolith.cinemaabyss.svc.cluster.local
+        port:
+          number: 8080
+      weight: 100
+    timeout: 5s
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: cinemaabyss-gateway
+  namespace: cinemaabyss
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*"
