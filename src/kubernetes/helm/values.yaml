@@ -5,7 +5,7 @@ global:
 
 # Image pull secrets
 imagePullSecrets:
-  dockerconfigjson: ewoJImF1dGhzIjogewoJCSJnaGNyLmlvIjogewoJCQkiYXV0aCI6
+  dockerconfigjson: ewoJImF1dGhzIjogewoJCSJnaGNyLmlvIjogewoJCQkiYXV0aCI6ICJJRzFoWm1WelpXNXJienBuYUhCZmN6VnBlV3hZTkdWcFQxWkVPWGxIVms5S1RHdzNjWGxFWkRCWlNrdHRNbEowUjFaQiIKCQl9LAoJCSJodHRwczovL2luZGV4LmRvY2tlci5pby92MS8iOiB7fQoJfSwKCSJjcmVkc1N0b3JlIjogImRlc2t0b3AiLAoJImN1cnJlbnRDb250ZXh0IjogImRlc2t0b3AtbGludXgiLAoJInBsdWdpbnMiOiB7CgkJIi14LWNsaS1oaW50cyI6IHsKCQkJImVuYWJsZWQiOiAidHJ1ZSIKCQl9Cgl9LAoJImZlYXR1cmVzIjogewoJCSJob29rcyI6ICJ0cnVlIgoJfQp9Cg==
 # Database configuration
 database:
   host: postgres
@@ -33,8 +33,8 @@ database:
 monolith:
   enabled: true
   image:
-    repository: ghcr.io/db-exp/cinemaabysstest/monolith
-    tag: latest
+    repository: ghcr.io/mafesenko/architecture-sprint-2/monolith
+    tag: sha-e152273@sha256:f3adedf8fd81e7dd5ab6e7d8f5eb5bebc7632e7e9e93de9fcf898df7a4bbe67b
     pullPolicy: Always
   replicas: 1
   resources:
@@ -53,8 +53,8 @@ monolith:
 proxyService:
   enabled: true
   image:
-    repository: ghcr.io/db-exp/cinemaabysstest/proxy-service
-    tag: latest
+    repository: ghcr.io/mafesenko/architecture-sprint-2/proxy-service
+    tag: sha-e152273@sha256:e6ca34d691c320019f8de51765ff1196a8cc7ca24f5e6f8805b0ebbd7ed64caf
     pullPolicy: Always
   replicas: 1
   resources:
@@ -65,7 +65,7 @@ proxyService:
       cpu: 100m
       memory: 128Mi
   service:
-    port: 80
+    port: 8000
     targetPort: 8000
     type: ClusterIP
 
@@ -73,8 +73,8 @@ proxyService:
 moviesService:
   enabled: true
   image:
-    repository: ghcr.io/db-exp/cinemaabysstest/movies-service
-    tag: latest
+    repository: ghcr.io/mafesenko/architecture-sprint-2/movies-service
+    tag: sha-e152273@sha256:c435d05bdb4a9cfa9961630e27dc61f2a201c8559d000bb46bde4643967589f7
     pullPolicy: Always
   replicas: 1
   resources:
@@ -93,8 +93,8 @@ moviesService:
 eventsService:
   enabled: true
   image:
-    repository: ghcr.io/db-exp/cinemaabysstest/events-service
-    tag: latest
+    repository: ghcr.io/mafesenko/architecture-sprint-2/events-service
+    tag: sha-e152273@sha256:81053a2e033a4b6262dcc4bcc87d99d8c6965dd6af2c7189564beadd5da824d2
     pullPolicy: Always
   replicas: 1
   resources:
@@ -108,6 +108,8 @@ eventsService:
     port: 8082
     targetPort: 8082
     type: ClusterIP
+  kafka: 
+    broker: kafka:9092
 
 # Kafka configuration
 kafka:
@@ -172,7 +174,7 @@ ingress:
         - path: /
           pathType: Prefix
           service: proxy-service
-          port: 80
+          port: 8000
         - path: /api/events
           pathType: Prefix
           service: events-service
